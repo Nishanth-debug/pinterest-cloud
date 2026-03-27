@@ -1,4 +1,3 @@
-import axios from 'axios';
 import potrace from 'potrace';
 import { promisify } from 'util';
 import fs from 'fs';
@@ -17,33 +16,26 @@ export async function GET(request) {
   if (!imageUrl) return new Response('Missing URL', { status: 400 });
 
   try {
-    // Enhanced stealth headers to bypass Pinterest's 403 Forbidden error
-    const response = await axios({ 
-        url: imageUrl, 
-        responseType: 'arraybuffer',
+    // Upgraded to native fetch to bypass WAF fingerprinting
+    const response = await fetch(imageUrl, {
         headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': 'https://www.pinterest.com/' // This tells Pinterest we are coming from their own site
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Referer': 'https://www.pinterest.com/',
+            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
         }
     });
 
-    const contentType = response.headers['content-type'] || 'image/jpeg';
-
-    // --- 1. PREVIEW FOR UI (NO DOWNLOAD RULE) ---
-    if (type === 'preview') {
-      return new Response(response.data, {
-        headers: {
-          'Content-Type': contentType,
-          'Cache-Control': 'public, max-age=86400'
-        },
-      });
+    if (!response.ok) {
+        throw new Error(`Pinterest Firewall Blocked Request (Status: ${response.status})`);
     }
 
-    // --- 2. ORIGINAL COLOR DOWNLOAD ---
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+    // --- 1. ORIGINAL COLOR DOWNLOAD ---
     if (type === 'color') {
-      return new Response(response.data, {
+      return new Response(buffer, {
         headers: {
           'Content-Type': contentType,
           'Content-Disposition': 'attachment; filename="kodo_master_color.png"',
@@ -51,9 +43,9 @@ export async function GET(request) {
       });
     }
 
-    // --- 3. B&W VECTOR DOWNLOAD ---
+    // --- 2. B&W VECTOR DOWNLOAD ---
     const tempFilePath = path.join(os.tmpdir(), `kodo_temp_${Date.now()}.jpg`);
-    await writeFile(tempFilePath, Buffer.from(response.data));
+    await writeFile(tempFilePath, buffer);
 
     const svg = await trace(tempFilePath, {
       color: '#000000',
