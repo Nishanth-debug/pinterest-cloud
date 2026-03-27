@@ -5,12 +5,12 @@ export default function Home() {
   const [url, setUrl] = useState('');
   const [highRes, setHighRes] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [statusText, setStatusText] = useState('');
 
   const processUrl = () => {
     try {
       const u = new URL(url);
       const parts = u.pathname.split('/');
-      // Ensure we are grabbing the 'originals' for the sharpest base image
       if (parts.length > 2) parts[1] = 'originals';
       u.pathname = parts.join('/');
       setHighRes(u.toString());
@@ -19,40 +19,66 @@ export default function Home() {
     }
   };
 
-  const handleDownload = (type) => {
+  const handleStandardDownload = (type) => {
     setIsProcessing(true);
-    // This calls our backend API and passes the selected type (color, enhance, or vector)
+    setStatusText('Downloading from Vercel Server...');
     window.location.href = `/api/download?url=${encodeURIComponent(highRes)}&type=${type}`;
-    
-    // Reset loading state after a few seconds
-    setTimeout(() => setIsProcessing(false), 3000);
+    setTimeout(() => {
+      setIsProcessing(false);
+      setStatusText('');
+    }, 3000);
+  };
+
+  // --- THE NEW BROWSER AI ENGINE ---
+  const handleAIUpscale = async () => {
+    setIsProcessing(true);
+    try {
+      // 1. Fetch the raw image through our Vercel Proxy (bypasses CORS security)
+      setStatusText('Fetching base image...');
+      const response = await fetch(`/api/download?url=${encodeURIComponent(highRes)}&type=color`);
+      const blob = await response.blob();
+      const imageObjectUrl = URL.createObjectURL(blob);
+
+      // 2. Load it into a temporary HTML Image Element
+      const img = new Image();
+      img.src = imageObjectUrl;
+      await new Promise((resolve) => { img.onload = resolve; });
+
+      // 3. Dynamically load TensorFlow & Upscaler (prevents server crashes)
+      setStatusText('Loading Neural Network (First time takes a few seconds)...');
+      const { default: Upscaler } = await import('upscaler');
+      const upscaler = new Upscaler();
+
+      // 4. Run the AI processing using your Laptop's GPU
+      setStatusText('AI Upscaling in progress... Please wait 10-30 seconds.');
+      const upscaledImageBase64 = await upscaler.upscale(img);
+
+      // 5. Trigger the download of the massive new file
+      setStatusText('Done! Downloading Kodo DTF Master...');
+      const link = document.createElement('a');
+      link.href = upscaledImageBase64;
+      link.download = `kodo_ai_master_${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+    } catch (error) {
+      console.error(error);
+      alert("AI Processing Failed. Image might be too large for browser memory.");
+    } finally {
+      setIsProcessing(false);
+      setStatusText('');
+    }
   };
 
   return (
-    <div style={{ 
-      padding: '60px 20px', 
-      textAlign: 'center', 
-      fontFamily: '"Inter", sans-serif', 
-      backgroundColor: '#000', 
-      color: '#fff', 
-      minHeight: '100vh' 
-    }}>
+    <div style={{ padding: '60px 20px', textAlign: 'center', fontFamily: '"Inter", sans-serif', backgroundColor: '#000', color: '#fff', minHeight: '100vh' }}>
       <h1 style={{ fontSize: '3rem', fontWeight: '800', marginBottom: '10px' }}>KODO <span style={{ color: '#E60023' }}>STUDIO</span></h1>
-      <p style={{ opacity: 0.7, marginBottom: '40px' }}>Apparel Asset Downloader & Enhancer</p>
+      <p style={{ opacity: 0.7, marginBottom: '40px' }}>Local AI Web Upscaler</p>
       
       <div style={{ marginBottom: '20px' }}>
         <input 
-          style={{ 
-            width: '100%', 
-            maxWidth: '500px', 
-            padding: '18px', 
-            borderRadius: '12px', 
-            border: 'none', 
-            backgroundColor: '#222', 
-            color: '#fff',
-            fontSize: '16px',
-            outline: 'none'
-          }}
+          style={{ width: '100%', maxWidth: '500px', padding: '18px', borderRadius: '12px', border: 'none', backgroundColor: '#222', color: '#fff', fontSize: '16px', outline: 'none' }}
           placeholder="Paste Pinterest link here..." 
           value={url}
           onChange={(e) => setUrl(e.target.value)}
@@ -60,85 +86,57 @@ export default function Home() {
         <br />
         <button 
           onClick={processUrl} 
-          style={{ 
-            marginTop: '20px', 
-            padding: '12px 40px', 
-            backgroundColor: '#fff', 
-            color: '#000', 
-            borderRadius: '30px', 
-            border: 'none',
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            transition: '0.3s'
-          }}
+          style={{ marginTop: '20px', padding: '12px 40px', backgroundColor: '#fff', color: '#000', borderRadius: '30px', border: 'none', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s' }}
         >
           Verify Design
         </button>
       </div>
       
       {highRes && (
-        <div style={{ 
-          marginTop: '50px', 
-          animation: 'fadeIn 0.5s ease-in'
-        }}>
-          <div style={{ position: 'relative', display: 'inline-block' }}>
-            <img 
-              src={highRes} 
-              style={{ 
-                width: '100%', 
-                maxWidth: '400px', 
-                borderRadius: '20px', 
-                border: '1px solid #444',
-                boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
-              }} 
-              alt="preview" 
-            />
-          </div>
+        <div style={{ marginTop: '50px', animation: 'fadeIn 0.5s ease-in' }}>
+          <img src={highRes} style={{ width: '100%', maxWidth: '300px', borderRadius: '20px', border: '1px solid #444', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }} alt="preview" />
           <br />
 
-          {/* THE NEW THREE-BUTTON LAYOUT */}
+          {statusText && (
+            <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#222', borderRadius: '8px', color: '#00f2fe', fontWeight: 'bold', display: 'inline-block' }}>
+              ⚙️ {statusText}
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px', flexWrap: 'wrap' }}>
             
-            {/* 1. ORIGINAL COLOR */}
+            {/* VERCEL PROXY DOWNLOAD */}
             <button 
-              onClick={() => handleDownload('color')}
+              onClick={() => handleStandardDownload('color')}
               disabled={isProcessing}
-              style={{ padding: '15px 25px', backgroundColor: '#333', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}
+              style={{ padding: '15px 25px', backgroundColor: '#333', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold', cursor: isProcessing ? 'not-allowed' : 'pointer' }}
             >
-              Get Original PNG
+              Get Original Size (PNG)
             </button>
 
-            {/* 2. CUSTOM ENHANCED COLOR */}
+            {/* BROWSER AI UPSCALER */}
             <button 
-              onClick={() => handleDownload('enhance')}
+              onClick={handleAIUpscale}
               disabled={isProcessing}
-              style={{ padding: '15px 25px', backgroundColor: '#0070f3', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 14px 0 rgba(0,118,255,0.39)' }}
+              style={{ padding: '15px 25px', backgroundImage: 'linear-gradient(to right, #4facfe 0%, #00f2fe 100%)', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold', cursor: isProcessing ? 'not-allowed' : 'pointer', boxShadow: '0 4px 14px 0 rgba(0,242,254,0.39)' }}
             >
-              Enhance Color (2x Sharp)
+              ✨ Run Browser AI Upscale (2x)
             </button>
 
-            {/* 3. VECTOR BUTTON */}
+            {/* VECTOR BUTTON */}
             <button 
-              onClick={() => handleDownload('vector')}
+              onClick={() => handleStandardDownload('vector')}
               disabled={isProcessing}
-              style={{ padding: '15px 25px', backgroundColor: '#E60023', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}
+              style={{ padding: '15px 25px', backgroundColor: '#E60023', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold', cursor: isProcessing ? 'not-allowed' : 'pointer' }}
             >
-              Get B&W Vector
+              Get B&W Vector (SVG)
             </button>
 
           </div>
-          
-          <p style={{ marginTop: '20px', fontSize: '12px', opacity: 0.5 }}>
-            Select the best format for your DTF apparel prints.
-          </p>
         </div>
       )}
-
       <style jsx global>{`
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );
