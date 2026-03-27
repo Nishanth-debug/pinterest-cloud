@@ -1,7 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
-  reactCompiler: true,
+  // Tells the compiler to leave these heavy Node libraries alone
+  serverExternalPackages: ['potrace', 'jimp'],
+  experimental: {
+    serverComponentsExternalPackages: ['potrace', 'jimp'],
+  }
 };
 
 export default nextConfig;
