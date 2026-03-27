@@ -12,43 +12,32 @@ const unlink = promisify(fs.unlink);
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const imageUrl = searchParams.get('url');
-  const type = searchParams.get('type') || 'color';
+  const type = searchParams.get('type') || 'color'; // Default to color
 
   if (!imageUrl) return new Response('Missing URL', { status: 400 });
 
   try {
-    // Fetch with browser headers to bypass Pinterest blocks
+    // 1. Fetch the raw image data from Pinterest
     const response = await axios({ 
         url: imageUrl, 
         responseType: 'arraybuffer',
         headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'image/*'
         }
     });
 
-    const contentType = response.headers['content-type'] || 'image/jpeg';
-
-    // --- 1. PREVIEW FOR UI (NO DOWNLOAD RULE) ---
-    if (type === 'preview') {
-      return new Response(response.data, {
-        headers: {
-          'Content-Type': contentType,
-        },
-      });
-    }
-
-    // --- 2. ORIGINAL COLOR DOWNLOAD (FORCES FILE SAVE) ---
+    // 2. LOGIC GATE: If user wants color, send the raw high-res PNG
     if (type === 'color') {
       return new Response(response.data, {
         headers: {
-          'Content-Type': contentType,
-          'Content-Disposition': 'attachment; filename="kodo_master_color.png"',
+          'Content-Type': 'image/png',
+          'Content-Disposition': 'attachment; filename="kodo_full_color.png"',
         },
       });
     }
 
-    // --- 3. B&W VECTOR DOWNLOAD ---
+    // 3. LOGIC GATE: If user wants vector, run the Potrace engine
     const tempFilePath = path.join(os.tmpdir(), `kodo_temp_${Date.now()}.jpg`);
     await writeFile(tempFilePath, Buffer.from(response.data));
 
