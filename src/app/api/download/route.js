@@ -27,17 +27,28 @@ export async function GET(request) {
         }
     });
 
-    // --- 1. ORIGINAL COLOR ---
+    const contentType = response.headers['content-type'] || 'image/jpeg';
+
+    // --- 1. PREVIEW FOR UI (NO DOWNLOAD RULE) ---
+    if (type === 'preview') {
+      return new Response(response.data, {
+        headers: {
+          'Content-Type': contentType,
+        },
+      });
+    }
+
+    // --- 2. ORIGINAL COLOR DOWNLOAD (FORCES FILE SAVE) ---
     if (type === 'color') {
       return new Response(response.data, {
         headers: {
-          'Content-Type': 'image/png',
+          'Content-Type': contentType,
           'Content-Disposition': 'attachment; filename="kodo_master_color.png"',
         },
       });
     }
 
-    // --- 2. B&W VECTOR ---
+    // --- 3. B&W VECTOR DOWNLOAD ---
     const tempFilePath = path.join(os.tmpdir(), `kodo_temp_${Date.now()}.jpg`);
     await writeFile(tempFilePath, Buffer.from(response.data));
 

@@ -48,9 +48,9 @@ export default function Home() {
       {highRes && (
         <div style={{ marginTop: '50px', animation: 'fadeIn 0.5s ease-in' }}>
           
-          {/* FIXED PREVIEW IMAGE: Routed through our Vercel Proxy to bypass CORS */}
+          {/* FIXED PREVIEW IMAGE: Now using type=preview */}
           <img 
-            src={`/api/download?url=${encodeURIComponent(highRes)}&type=color`} 
+            src={`/api/download?url=${encodeURIComponent(highRes)}&type=preview`} 
             style={{ width: '100%', maxWidth: '300px', borderRadius: '20px', border: '1px solid #444', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }} 
             alt="preview" 
           />
@@ -75,7 +75,7 @@ export default function Home() {
               Get B&W Vector (SVG)
             </button>
 
-          </div>q
+          </div>
         </div>
       )}
       <style jsx global>{`
