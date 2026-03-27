@@ -12,32 +12,46 @@ const unlink = promisify(fs.unlink);
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const imageUrl = searchParams.get('url');
-  const type = searchParams.get('type') || 'color'; // Default to color
+  const type = searchParams.get('type') || 'color';
 
   if (!imageUrl) return new Response('Missing URL', { status: 400 });
 
   try {
-    // 1. Fetch the raw image data from Pinterest
+    // Enhanced stealth headers to bypass Pinterest's 403 Forbidden error
     const response = await axios({ 
         url: imageUrl, 
         responseType: 'arraybuffer',
         headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'image/*'
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.pinterest.com/' // This tells Pinterest we are coming from their own site
         }
     });
 
-    // 2. LOGIC GATE: If user wants color, send the raw high-res PNG
-    if (type === 'color') {
+    const contentType = response.headers['content-type'] || 'image/jpeg';
+
+    // --- 1. PREVIEW FOR UI (NO DOWNLOAD RULE) ---
+    if (type === 'preview') {
       return new Response(response.data, {
         headers: {
-          'Content-Type': 'image/png',
-          'Content-Disposition': 'attachment; filename="kodo_full_color.png"',
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=86400'
         },
       });
     }
 
-    // 3. LOGIC GATE: If user wants vector, run the Potrace engine
+    // --- 2. ORIGINAL COLOR DOWNLOAD ---
+    if (type === 'color') {
+      return new Response(response.data, {
+        headers: {
+          'Content-Type': contentType,
+          'Content-Disposition': 'attachment; filename="kodo_master_color.png"',
+        },
+      });
+    }
+
+    // --- 3. B&W VECTOR DOWNLOAD ---
     const tempFilePath = path.join(os.tmpdir(), `kodo_temp_${Date.now()}.jpg`);
     await writeFile(tempFilePath, Buffer.from(response.data));
 
@@ -57,7 +71,7 @@ export async function GET(request) {
     });
 
   } catch (e) {
-    console.error("DOWNLOAD ERROR:", e);
+    console.error("DOWNLOAD ERROR:", e.message);
     return new Response(`Processing Error: ${e.message}`, { status: 500 });
   }
 }
