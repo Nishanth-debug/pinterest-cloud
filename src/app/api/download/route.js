@@ -1,6 +1,5 @@
 import axios from 'axios';
 import potrace from 'potrace';
-import Jimp from 'jimp';
 import { promisify } from 'util';
 import fs from 'fs';
 import os from 'os';
@@ -18,6 +17,7 @@ export async function GET(request) {
   if (!imageUrl) return new Response('Missing URL', { status: 400 });
 
   try {
+    // Fetch with browser headers to bypass Pinterest blocks
     const response = await axios({ 
         url: imageUrl, 
         responseType: 'arraybuffer',
@@ -27,46 +27,17 @@ export async function GET(request) {
         }
     });
 
-    // --- 1. ORIGINAL COLOR (Bypass) ---
+    // --- 1. ORIGINAL COLOR ---
     if (type === 'color') {
       return new Response(response.data, {
         headers: {
           'Content-Type': 'image/png',
-          'Content-Disposition': 'attachment; filename="kodo_original.png"',
+          'Content-Disposition': 'attachment; filename="kodo_master_color.png"',
         },
       });
     }
 
-    // --- 2. ALGORITHMIC ENHANCEMENT (Your Custom Engine) ---
-    if (type === 'enhance') {
-      console.log("Starting Image Enhancement Algorithm...");
-      const image = await Jimp.read(Buffer.from(response.data));
-      
-      // Algorithm Step 1: Double the size using Bicubic math
-      image.scale(2, Jimp.RESIZE_BICUBIC);
-      
-      // Algorithm Step 2: Boost contrast by 10% for print punchiness
-      image.contrast(0.1);
-      
-      // Algorithm Step 3: Apply a Sharpening Convolution Matrix to crisp edges
-      const sharpenMatrix = [
-        [  0, -1,  0 ],
-        [ -1,  5, -1 ],
-        [  0, -1,  0 ]
-      ];
-      image.convolute(sharpenMatrix);
-
-      const enhancedBuffer = await image.getBufferAsync(Jimp.MIME_PNG);
-      
-      return new Response(enhancedBuffer, {
-        headers: {
-          'Content-Type': 'image/png',
-          'Content-Disposition': 'attachment; filename="kodo_enhanced_2x.png"',
-        },
-      });
-    }
-
-    // --- 3. B&W VECTOR (Potrace) ---
+    // --- 2. B&W VECTOR ---
     const tempFilePath = path.join(os.tmpdir(), `kodo_temp_${Date.now()}.jpg`);
     await writeFile(tempFilePath, Buffer.from(response.data));
 
