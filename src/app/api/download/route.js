@@ -1,8 +1,13 @@
 import axios from 'axios';
 import potrace from 'potrace';
 import { promisify } from 'util';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
 const trace = promisify(potrace.trace);
+const writeFile = promisify(fs.writeFile);
+const unlink = promisify(fs.unlink);
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -11,31 +16,32 @@ export async function GET(request) {
   if (!imageUrl) return new Response('Missing URL', { status: 400 });
 
   try {
-    console.log("Fetching image from:", imageUrl);
-    
-    // 1. Fetch image with fake Browser Headers to bypass Pinterest blocks
+    // 1. Fetch image with fake Browser Headers
     const response = await axios({ 
         url: imageUrl, 
         responseType: 'arraybuffer',
         headers: {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'image/jpeg,image/png,image/*;q=0.8'
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'image/*'
         }
     });
     
-    console.log("Image fetched successfully. Converting to buffer...");
-    const buffer = Buffer.from(response.data);
+    // 2. Write the buffer to Vercel's physical /tmp disk
+    // This completely bypasses the memory 'instanceof' bug
+    const tempFilePath = path.join(os.tmpdir(), `kodo_temp_${Date.now()}.jpg`);
+    await writeFile(tempFilePath, Buffer.from(response.data));
 
-    console.log("Starting Potrace vectorization...");
-    // 2. Vectorize the image (optimized for apparel logos)
-    const svg = await trace(buffer, {
+    // 3. Vectorize by pointing potrace to the file path instead of memory
+    const svg = await trace(tempFilePath, {
       color: '#000000',
-      threshold: 120, // Adjust this between 100-150 if vectors are too dark/light
+      threshold: 120, 
       optTolerance: 0.4
     });
 
-    console.log("Vectorization complete!");
-    // 3. Send back the SVG
+    // 4. Clean up (delete the temp file so we don't clog the server)
+    await unlink(tempFilePath).catch(() => {});
+
+    // 5. Send back the Kodo Vector
     return new Response(svg, {
       headers: {
         'Content-Type': 'image/svg+xml',
@@ -43,8 +49,7 @@ export async function GET(request) {
       },
     });
   } catch (e) {
-    // This will print the EXACT reason it failed to your screen
-    console.error("VECTOR ERROR:", e.message);
+    console.error("VECTOR ERROR:", e);
     return new Response(`Vectorization Error: ${e.message}`, { status: 500 });
   }
 }
