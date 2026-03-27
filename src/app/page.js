@@ -19,10 +19,10 @@ export default function Home() {
     }
   };
 
-  const downloadVector = () => {
+  const handleDownload = (type) => {
     setIsProcessing(true);
-    // This calls the new API we built with the 'potrace' library
-    window.location.href = `/api/download?url=${encodeURIComponent(highRes)}`;
+    // This calls our backend API and passes the selected type (color, enhance, or vector)
+    window.location.href = `/api/download?url=${encodeURIComponent(highRes)}&type=${type}`;
     
     // Reset loading state after a few seconds
     setTimeout(() => setIsProcessing(false), 3000);
@@ -37,8 +37,8 @@ export default function Home() {
       color: '#fff', 
       minHeight: '100vh' 
     }}>
-      <h1 style={{ fontSize: '3rem', fontWeight: '800', marginBottom: '10px' }}>KODO <span style={{ color: '#E60023' }}>VECTOR</span></h1>
-      <p style={{ opacity: 0.7, marginBottom: '40px' }}>Convert Pinterest designs into high-fidelity sharp vectors.</p>
+      <h1 style={{ fontSize: '3rem', fontWeight: '800', marginBottom: '10px' }}>KODO <span style={{ color: '#E60023' }}>STUDIO</span></h1>
+      <p style={{ opacity: 0.7, marginBottom: '40px' }}>Apparel Asset Downloader & Enhancer</p>
       
       <div style={{ marginBottom: '20px' }}>
         <input 
@@ -95,27 +95,41 @@ export default function Home() {
             />
           </div>
           <br />
-          <button 
-            onClick={downloadVector}
-            disabled={isProcessing}
-            style={{ 
-              marginTop: '30px', 
-              padding: '20px 50px', 
-              backgroundColor: '#E60023', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '50px',
-              fontSize: '18px',
-              fontWeight: '900',
-              cursor: 'pointer',
-              boxShadow: '0 10px 20px rgba(230, 0, 35, 0.3)',
-              textTransform: 'uppercase'
-            }}
-          >
-            {isProcessing ? 'Vectorizing...' : 'Download Ultra-Sharp Vector'}
-          </button>
-          <p style={{ marginTop: '15px', fontSize: '12px', opacity: 0.5 }}>
-            Output format: .SVG (Scalable Vector Graphics)
+
+          {/* THE NEW THREE-BUTTON LAYOUT */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '30px', flexWrap: 'wrap' }}>
+            
+            {/* 1. ORIGINAL COLOR */}
+            <button 
+              onClick={() => handleDownload('color')}
+              disabled={isProcessing}
+              style={{ padding: '15px 25px', backgroundColor: '#333', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              Get Original PNG
+            </button>
+
+            {/* 2. CUSTOM ENHANCED COLOR */}
+            <button 
+              onClick={() => handleDownload('enhance')}
+              disabled={isProcessing}
+              style={{ padding: '15px 25px', backgroundColor: '#0070f3', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 14px 0 rgba(0,118,255,0.39)' }}
+            >
+              Enhance Color (2x Sharp)
+            </button>
+
+            {/* 3. VECTOR BUTTON */}
+            <button 
+              onClick={() => handleDownload('vector')}
+              disabled={isProcessing}
+              style={{ padding: '15px 25px', backgroundColor: '#E60023', color: 'white', border: 'none', borderRadius: '12px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}
+            >
+              Get B&W Vector
+            </button>
+
+          </div>
+          
+          <p style={{ marginTop: '20px', fontSize: '12px', opacity: 0.5 }}>
+            Select the best format for your DTF apparel prints.
           </p>
         </div>
       )}

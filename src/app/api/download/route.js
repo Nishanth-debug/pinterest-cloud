@@ -1,5 +1,6 @@
 import axios from 'axios';
 import potrace from 'potrace';
+import Jimp from 'jimp';
 import { promisify } from 'util';
 import fs from 'fs';
 import os from 'os';
@@ -12,11 +13,11 @@ const unlink = promisify(fs.unlink);
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const imageUrl = searchParams.get('url');
+  const type = searchParams.get('type') || 'color';
 
   if (!imageUrl) return new Response('Missing URL', { status: 400 });
 
   try {
-    // 1. Fetch image with fake Browser Headers
     const response = await axios({ 
         url: imageUrl, 
         responseType: 'arraybuffer',
@@ -25,31 +26,67 @@ export async function GET(request) {
             'Accept': 'image/*'
         }
     });
-    
-    // 2. Write the buffer to Vercel's physical /tmp disk
-    // This completely bypasses the memory 'instanceof' bug
+
+    // --- 1. ORIGINAL COLOR (Bypass) ---
+    if (type === 'color') {
+      return new Response(response.data, {
+        headers: {
+          'Content-Type': 'image/png',
+          'Content-Disposition': 'attachment; filename="kodo_original.png"',
+        },
+      });
+    }
+
+    // --- 2. ALGORITHMIC ENHANCEMENT (Your Custom Engine) ---
+    if (type === 'enhance') {
+      console.log("Starting Image Enhancement Algorithm...");
+      const image = await Jimp.read(Buffer.from(response.data));
+      
+      // Algorithm Step 1: Double the size using Bicubic math
+      image.scale(2, Jimp.RESIZE_BICUBIC);
+      
+      // Algorithm Step 2: Boost contrast by 10% for print punchiness
+      image.contrast(0.1);
+      
+      // Algorithm Step 3: Apply a Sharpening Convolution Matrix to crisp edges
+      const sharpenMatrix = [
+        [  0, -1,  0 ],
+        [ -1,  5, -1 ],
+        [  0, -1,  0 ]
+      ];
+      image.convolute(sharpenMatrix);
+
+      const enhancedBuffer = await image.getBufferAsync(Jimp.MIME_PNG);
+      
+      return new Response(enhancedBuffer, {
+        headers: {
+          'Content-Type': 'image/png',
+          'Content-Disposition': 'attachment; filename="kodo_enhanced_2x.png"',
+        },
+      });
+    }
+
+    // --- 3. B&W VECTOR (Potrace) ---
     const tempFilePath = path.join(os.tmpdir(), `kodo_temp_${Date.now()}.jpg`);
     await writeFile(tempFilePath, Buffer.from(response.data));
 
-    // 3. Vectorize by pointing potrace to the file path instead of memory
     const svg = await trace(tempFilePath, {
       color: '#000000',
       threshold: 120, 
       optTolerance: 0.4
     });
 
-    // 4. Clean up (delete the temp file so we don't clog the server)
     await unlink(tempFilePath).catch(() => {});
 
-    // 5. Send back the Kodo Vector
     return new Response(svg, {
       headers: {
         'Content-Type': 'image/svg+xml',
-        'Content-Disposition': 'attachment; filename="kodo_vector.svg"',
+        'Content-Disposition': 'attachment; filename="kodo_logo_vector.svg"',
       },
     });
+
   } catch (e) {
-    console.error("VECTOR ERROR:", e);
-    return new Response(`Vectorization Error: ${e.message}`, { status: 500 });
+    console.error("DOWNLOAD ERROR:", e);
+    return new Response(`Processing Error: ${e.message}`, { status: 500 });
   }
 }
