@@ -11,19 +11,31 @@ export async function GET(request) {
   if (!imageUrl) return new Response('Missing URL', { status: 400 });
 
   try {
-    // 1. Fetch the image
-    const response = await axios({ url: imageUrl, responseType: 'arraybuffer' });
+    console.log("Fetching image from:", imageUrl);
+    
+    // 1. Fetch image with fake Browser Headers to bypass Pinterest blocks
+    const response = await axios({ 
+        url: imageUrl, 
+        responseType: 'arraybuffer',
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'image/jpeg,image/png,image/*;q=0.8'
+        }
+    });
+    
+    console.log("Image fetched successfully. Converting to buffer...");
     const buffer = Buffer.from(response.data);
 
-    // 2. Vectorize (Trace) the image
-    // Options: color: '#000' ensures a solid black vector for printing/logos
+    console.log("Starting Potrace vectorization...");
+    // 2. Vectorize the image (optimized for apparel logos)
     const svg = await trace(buffer, {
-      threshold: 128,
-      turdSize: 2, // Removes tiny "noise" spots
+      color: '#000000',
+      threshold: 120, // Adjust this between 100-150 if vectors are too dark/light
       optTolerance: 0.4
     });
 
-    // 3. Return as a Vector (SVG)
+    console.log("Vectorization complete!");
+    // 3. Send back the SVG
     return new Response(svg, {
       headers: {
         'Content-Type': 'image/svg+xml',
@@ -31,7 +43,8 @@ export async function GET(request) {
       },
     });
   } catch (e) {
-    console.error(e);
-    return new Response('Vectorization Failed', { status: 500 });
+    // This will print the EXACT reason it failed to your screen
+    console.error("VECTOR ERROR:", e.message);
+    return new Response(`Vectorization Error: ${e.message}`, { status: 500 });
   }
 }
